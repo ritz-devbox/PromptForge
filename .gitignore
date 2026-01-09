@@ -1,0 +1,41 @@
+# Binaries
+promptforge
+promptforge.exe
+promptforge-*
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Dependency directories
+vendor/
+node_modules/
+
+# Generated files
+prompt.ir.json
+promptforge/plan.md
+
+# VS Code extension packages
+*.vsix
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+

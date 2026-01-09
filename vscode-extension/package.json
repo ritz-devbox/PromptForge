@@ -1,0 +1,79 @@
+{
+  "name": "promptforge-editor",
+  "displayName": "PromptForge - AI Prompt Contract Generator",
+  "description": "Transform your ideas into machine-enforceable prompt contracts for AI agents. Simple form-based editor that generates JSON-ready contracts.",
+  "version": "1.0.0",
+  "publisher": "promptforge",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other",
+    "Machine Learning",
+    "AI"
+  ],
+  "keywords": [
+    "ai",
+    "llm",
+    "prompt",
+    "contract",
+    "json",
+    "schema",
+    "machine-learning"
+  ],
+  "activationEvents": [
+    "onCommand:promptforge.openEditor",
+    "onCommand:promptforge.newPlan"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "promptforge.openEditor",
+        "title": "Open PromptForge Editor",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "promptforge.newPlan",
+        "title": "Create New Prompt Plan",
+        "icon": "$(add)"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "promptforge.openEditor",
+          "when": "resourceExtname == .md && resourcePath =~ /plan\\.md$/",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "promptforge.openEditor",
+          "title": "PromptForge: Open Editor"
+        },
+        {
+          "command": "promptforge.newPlan",
+          "title": "PromptForge: Create New Plan"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/promptforge/promptforge"
+  },
+  "license": "MIT",
+  "icon": "icon.png",
+  "galleryBanner": {
+    "color": "#667eea",
+    "theme": "dark"
+  }
+}
+
