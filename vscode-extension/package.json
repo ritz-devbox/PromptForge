@@ -23,7 +23,9 @@
   ],
   "activationEvents": [
     "onCommand:promptforge.openEditor",
-    "onCommand:promptforge.newPlan"
+    "onCommand:promptforge.newPlan",
+    "workspaceContains:promptforge/plan.md",
+    "onLanguage:markdown"
   ],
   "main": "./extension.js",
   "contributes": {
@@ -39,6 +41,36 @@
         "icon": "$(add)"
       }
     ],
+    "configuration": {
+      "title": "PromptForge",
+      "properties": {
+        "promptforge.cliPath": {
+          "type": "string",
+          "default": "promptforge",
+          "description": "Path to the PromptForge CLI executable."
+        },
+        "promptforge.compileOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Compile prompt.ir.json when saving plan.md."
+        },
+        "promptforge.lintOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run linting when saving plan.md."
+        },
+        "promptforge.lintOnChange": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run linting with a short debounce while editing plan.md."
+        },
+        "promptforge.explainOnCompile": {
+          "type": "boolean",
+          "default": false,
+          "description": "Generate prompt.ir.explain.json on compile."
+        }
+      }
+    },
     "menus": {
       "explorer/context": [
         {
@@ -76,4 +108,3 @@
     "theme": "dark"
   }
 }
-

@@ -1,6 +1,8 @@
 package compiler
 
 import (
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -11,7 +13,7 @@ import (
 // TestCompile_SuccessfulIRGeneration tests that Compile generates a valid IR.
 func TestCompile_SuccessfulIRGeneration(t *testing.T) {
 	planContent := []byte("# Prompt Plan\n\n## Goal\nTest goal")
-	
+
 	ir, err := Compile(planContent)
 	if err != nil {
 		t.Fatalf("Compile() failed: %v", err)
@@ -43,7 +45,7 @@ func TestCompile_SuccessfulIRGeneration(t *testing.T) {
 // TestCompile_EmptyPlanContent tests that Compile fails on empty plan content.
 func TestCompile_EmptyPlanContent(t *testing.T) {
 	planContent := []byte("")
-	
+
 	ir, err := Compile(planContent)
 	if err == nil {
 		t.Error("Compile() should fail on empty plan content")
@@ -85,12 +87,12 @@ Test goal
 func TestCompile_VeryLongGoal(t *testing.T) {
 	longGoal := strings.Repeat("This is a very long goal. ", 100)
 	planContent := []byte("# Prompt Plan\n\n## Goal\n" + longGoal)
-	
+
 	ir, err := Compile(planContent)
 	if err != nil {
 		t.Fatalf("Compile() failed with long goal: %v", err)
 	}
-	
+
 	if len(ir.SystemRole) == 0 {
 		t.Error("SystemRole should not be empty")
 	}
@@ -113,7 +115,7 @@ Test goal
 	if err != nil {
 		t.Fatalf("Compile() failed with special characters: %v", err)
 	}
-	
+
 	// All rules should have valid IDs (no special chars in IDs)
 	for _, rule := range ir.Rules {
 		if strings.ContainsAny(rule.ID, "@#$%^&*()") {
@@ -138,7 +140,7 @@ Test goal
 	if err != nil {
 		t.Fatalf("Compile() failed: %v", err)
 	}
-	
+
 	// Should still have baseline rules
 	if len(ir.Rules) < 4 {
 		t.Errorf("Expected at least 4 baseline rules, got %d", len(ir.Rules))
@@ -151,7 +153,7 @@ func TestCompile_ManyConstraints(t *testing.T) {
 	for i := 0; i < 50; i++ {
 		constraints = append(constraints, "- Must handle constraint number "+string(rune('A'+i%26)))
 	}
-	
+
 	planContent := []byte(`# Prompt Plan
 
 ## Goal
@@ -167,12 +169,12 @@ Test goal
 	if err != nil {
 		t.Fatalf("Compile() failed with many constraints: %v", err)
 	}
-	
+
 	// Should have baseline rules + some constraints (parser may filter duplicates)
 	if len(ir.Rules) < 4 {
 		t.Errorf("Expected at least 4 baseline rules, got %d", len(ir.Rules))
 	}
-	
+
 	// All IDs should be unique
 	ruleIDs := make(map[string]bool)
 	for _, rule := range ir.Rules {
@@ -186,6 +188,7 @@ Test goal
 // TestValidateIR_ValidIR tests that ValidateIR passes for a valid IR.
 func TestValidateIR_ValidIR(t *testing.T) {
 	validIR := &ir.PromptIR{
+		Version:    ir.CurrentVersion,
 		SystemRole: "Test role",
 		Rules: []ir.Rule{
 			{
@@ -220,9 +223,30 @@ func TestValidateIR_NilIR(t *testing.T) {
 	}
 }
 
+// TestValidateIR_EmptyVersion tests that ValidateIR fails when version is empty.
+func TestValidateIR_EmptyVersion(t *testing.T) {
+	ir := &ir.PromptIR{
+		Version:    "",
+		SystemRole: "Test role",
+		Rules: []ir.Rule{
+			{ID: "rule-1", Description: "Test"},
+		},
+		InputSchema:  ir.Schema{Type: "object"},
+		OutputSchema: ir.Schema{Type: "object"},
+		FailureModes: []ir.FailureMode{
+			{ID: "fm-1", Condition: "Test", Response: "Test"},
+		},
+	}
+
+	if err := ValidateIR(ir); err == nil {
+		t.Error("ValidateIR() should fail when version is empty")
+	}
+}
+
 // TestValidateIR_EmptySystemRole tests that ValidateIR fails when system_role is empty.
 func TestValidateIR_EmptySystemRole(t *testing.T) {
 	ir := &ir.PromptIR{
+		Version:    ir.CurrentVersion,
 		SystemRole: "",
 		Rules: []ir.Rule{
 			{ID: "rule-1", Description: "Test"},
@@ -242,9 +266,10 @@ func TestValidateIR_EmptySystemRole(t *testing.T) {
 // TestValidateIR_EmptyRules tests that ValidateIR fails when rules array is empty.
 func TestValidateIR_EmptyRules(t *testing.T) {
 	ir := &ir.PromptIR{
-		SystemRole: "Test role",
-		Rules:      []ir.Rule{},
-		InputSchema: ir.Schema{Type: "object"},
+		Version:      ir.CurrentVersion,
+		SystemRole:   "Test role",
+		Rules:        []ir.Rule{},
+		InputSchema:  ir.Schema{Type: "object"},
 		OutputSchema: ir.Schema{Type: "object"},
 		FailureModes: []ir.FailureMode{
 			{ID: "fm-1", Condition: "Test", Response: "Test"},
@@ -259,6 +284,7 @@ func TestValidateIR_EmptyRules(t *testing.T) {
 // TestValidateIR_RuleMissingID tests that ValidateIR fails when a rule is missing ID.
 func TestValidateIR_RuleMissingID(t *testing.T) {
 	ir := &ir.PromptIR{
+		Version:    ir.CurrentVersion,
 		SystemRole: "Test role",
 		Rules: []ir.Rule{
 			{ID: "", Description: "Test"},
@@ -278,6 +304,7 @@ func TestValidateIR_RuleMissingID(t *testing.T) {
 // TestValidateIR_RuleMissingDescription tests that ValidateIR fails when a rule is missing description.
 func TestValidateIR_RuleMissingDescription(t *testing.T) {
 	ir := &ir.PromptIR{
+		Version:    ir.CurrentVersion,
 		SystemRole: "Test role",
 		Rules: []ir.Rule{
 			{ID: "rule-1", Description: ""},
@@ -297,6 +324,7 @@ func TestValidateIR_RuleMissingDescription(t *testing.T) {
 // TestValidateIR_EmptyInputSchemaType tests that ValidateIR fails when input_schema.type is empty.
 func TestValidateIR_EmptyInputSchemaType(t *testing.T) {
 	ir := &ir.PromptIR{
+		Version:    ir.CurrentVersion,
 		SystemRole: "Test role",
 		Rules: []ir.Rule{
 			{ID: "rule-1", Description: "Test"},
@@ -316,6 +344,7 @@ func TestValidateIR_EmptyInputSchemaType(t *testing.T) {
 // TestValidateIR_EmptyOutputSchemaType tests that ValidateIR fails when output_schema.type is empty.
 func TestValidateIR_EmptyOutputSchemaType(t *testing.T) {
 	ir := &ir.PromptIR{
+		Version:    ir.CurrentVersion,
 		SystemRole: "Test role",
 		Rules: []ir.Rule{
 			{ID: "rule-1", Description: "Test"},
@@ -335,6 +364,7 @@ func TestValidateIR_EmptyOutputSchemaType(t *testing.T) {
 // TestValidateIR_EmptyFailureModes tests that ValidateIR fails when failure_modes array is empty.
 func TestValidateIR_EmptyFailureModes(t *testing.T) {
 	ir := &ir.PromptIR{
+		Version:    ir.CurrentVersion,
 		SystemRole: "Test role",
 		Rules: []ir.Rule{
 			{ID: "rule-1", Description: "Test"},
@@ -352,6 +382,7 @@ func TestValidateIR_EmptyFailureModes(t *testing.T) {
 // TestValidateIR_FailureModeMissingID tests that ValidateIR fails when a failure mode is missing ID.
 func TestValidateIR_FailureModeMissingID(t *testing.T) {
 	ir := &ir.PromptIR{
+		Version:    ir.CurrentVersion,
 		SystemRole: "Test role",
 		Rules: []ir.Rule{
 			{ID: "rule-1", Description: "Test"},
@@ -371,6 +402,7 @@ func TestValidateIR_FailureModeMissingID(t *testing.T) {
 // TestValidateIR_FailureModeMissingCondition tests that ValidateIR fails when a failure mode is missing condition.
 func TestValidateIR_FailureModeMissingCondition(t *testing.T) {
 	ir := &ir.PromptIR{
+		Version:    ir.CurrentVersion,
 		SystemRole: "Test role",
 		Rules: []ir.Rule{
 			{ID: "rule-1", Description: "Test"},
@@ -390,6 +422,7 @@ func TestValidateIR_FailureModeMissingCondition(t *testing.T) {
 // TestValidateIR_FailureModeMissingResponse tests that ValidateIR fails when a failure mode is missing response.
 func TestValidateIR_FailureModeMissingResponse(t *testing.T) {
 	ir := &ir.PromptIR{
+		Version:    ir.CurrentVersion,
 		SystemRole: "Test role",
 		Rules: []ir.Rule{
 			{ID: "rule-1", Description: "Test"},
@@ -412,6 +445,7 @@ func TestWriteIR_InvalidIR(t *testing.T) {
 	outputPath := filepath.Join(tmpDir, "prompt.ir.json")
 
 	invalidIR := &ir.PromptIR{
+		Version:    ir.CurrentVersion,
 		SystemRole: "", // Invalid: empty system_role
 		Rules: []ir.Rule{
 			{ID: "rule-1", Description: "Test"},
@@ -432,6 +466,7 @@ func TestWriteIR_InvalidIR(t *testing.T) {
 // TestWriteIR_EmptyPath tests that WriteIR fails with empty path.
 func TestWriteIR_EmptyPath(t *testing.T) {
 	validIR := &ir.PromptIR{
+		Version:    ir.CurrentVersion,
 		SystemRole: "Test role",
 		Rules: []ir.Rule{
 			{ID: "rule-1", Description: "Test"},
@@ -446,5 +481,68 @@ func TestWriteIR_EmptyPath(t *testing.T) {
 	err := WriteIR(validIR, "")
 	if err == nil {
 		t.Error("WriteIR() should fail with empty path")
+	}
+}
+
+func TestPromptIRSchemaJSON_Basics(t *testing.T) {
+	data, err := ir.PromptIRSchemaJSON()
+	if err != nil {
+		t.Fatalf("PromptIRSchemaJSON() failed: %v", err)
+	}
+
+	var schema map[string]interface{}
+	if err := json.Unmarshal(data, &schema); err != nil {
+		t.Fatalf("Failed to unmarshal schema JSON: %v", err)
+	}
+
+	if schema["$schema"] == "" {
+		t.Error("Schema should include $schema")
+	}
+	if schema["$id"] == "" {
+		t.Error("Schema should include $id")
+	}
+}
+
+func TestWriteIRSchema_WritesFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	outputPath := filepath.Join(tmpDir, "prompt.ir.schema.json")
+
+	if err := WriteIRSchema(outputPath); err != nil {
+		t.Fatalf("WriteIRSchema() failed: %v", err)
+	}
+
+	if _, err := os.Stat(outputPath); os.IsNotExist(err) {
+		t.Error("prompt.ir.schema.json was not created")
+	}
+}
+
+func TestCompileWithExplain_Basics(t *testing.T) {
+	planContent := []byte(`# Prompt Plan
+
+## Goal
+Build a deterministic assistant.
+
+## Constraints
+- Must be fast
+
+## Out of Scope
+- Payments
+`)
+
+	irResult, report, err := CompileWithExplain(planContent)
+	if err != nil {
+		t.Fatalf("CompileWithExplain() failed: %v", err)
+	}
+	if irResult == nil || report == nil {
+		t.Fatal("CompileWithExplain() should return IR and report")
+	}
+	if report.SystemRole.Source.Section != "Goal" {
+		t.Errorf("Expected system role source section Goal, got %s", report.SystemRole.Source.Section)
+	}
+	if len(report.Rules) == 0 {
+		t.Error("Expected rules in explain report")
+	}
+	if len(report.FailureModes) == 0 {
+		t.Error("Expected failure modes in explain report")
 	}
 }

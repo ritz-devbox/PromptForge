@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PromptForge Lens</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,500;8..60,700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ink: #1d1d1b;
+        --ink-soft: #2d2c2a;
+        --fog: #f5f1ea;
+        --clay: #e6d4b8;
+        --ember: #d96b3f;
+        --stone: #c6b39a;
+        --glass: rgba(255, 255, 255, 0.7);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Space Grotesk", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: radial-gradient(circle at top, #fff6e6 0%, #f0e2cf 45%, #d1c2ae 100%);
+        min-height: 100vh;
+      }
+
+      .shell {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 36px 20px 64px;
+      }
+
+      header {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 32px;
+      }
+
+      .title-block h1 {
+        font-family: "Source Serif 4", serif;
+        font-size: clamp(2rem, 3vw, 3.2rem);
+        margin: 0 0 8px;
+      }
+
+      .title-block p {
+        margin: 0;
+        max-width: 460px;
+        color: var(--ink-soft);
+      }
+
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .control-card {
+        background: var(--glass);
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 14px;
+        padding: 12px 14px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+        display: grid;
+        gap: 6px;
+      }
+
+      .control-card label {
+        font-size: 0.75rem;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      .control-card input[type="file"] {
+        font-size: 0.85rem;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 18px;
+      }
+
+      .panel {
+        background: rgba(255, 255, 255, 0.85);
+        border-radius: 20px;
+        padding: 20px;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 0 24px 50px rgba(0, 0, 0, 0.12);
+        position: relative;
+        overflow: hidden;
+        animation: fadeUp 0.6s ease both;
+      }
+
+      .panel::before {
+        content: "";
+        position: absolute;
+        width: 140px;
+        height: 140px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(217, 107, 63, 0.35), transparent 70%);
+        top: -40px;
+        right: -40px;
+        opacity: 0.7;
+      }
+
+      h2 {
+        margin: 0 0 10px;
+        font-size: 1.2rem;
+      }
+
+      .pill {
+        display: inline-flex;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: var(--clay);
+        color: var(--ink-soft);
+        font-size: 0.75rem;
+        letter-spacing: 0.02em;
+      }
+
+      .section-block {
+        margin-top: 14px;
+      }
+
+      .section-block h3 {
+        margin: 0 0 6px;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--ink-soft);
+      }
+
+      .section-block p,
+      .section-block li {
+        margin: 0;
+        line-height: 1.5;
+        color: var(--ink);
+      }
+
+      .section-block ul {
+        padding-left: 20px;
+        margin: 6px 0 0;
+      }
+
+      .json-view {
+        background: #1f1e1c;
+        color: #f4f0ea;
+        padding: 16px;
+        border-radius: 14px;
+        font-family: "Courier New", monospace;
+        font-size: 0.78rem;
+        line-height: 1.45;
+        max-height: 340px;
+        overflow: auto;
+      }
+
+      .mapping {
+        display: grid;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .mapping-card {
+        padding: 12px;
+        border-radius: 12px;
+        background: #f8efe3;
+        border-left: 4px solid var(--ember);
+      }
+
+      .mapping-card h4 {
+        margin: 0 0 4px;
+        font-size: 0.9rem;
+      }
+
+      .mapping-card span {
+        font-size: 0.8rem;
+        color: var(--ink-soft);
+      }
+
+      .empty-state {
+        padding: 16px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, rgba(217, 107, 63, 0.2), rgba(198, 179, 154, 0.4));
+        color: var(--ink-soft);
+        font-size: 0.9rem;
+      }
+
+      @keyframes fadeUp {
+        from {
+          opacity: 0;
+          transform: translateY(14px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header>
+        <div class="title-block">
+          <span class="pill">PromptForge Lens</span>
+          <h1>Explore a plan, inspect the contract.</h1>
+          <p>
+            Load a plan, IR, and explain report to see how intent becomes
+            enforceable rules.
+          </p>
+        </div>
+      </header>
+
+      <div class="controls" style="margin-bottom: 20px;">
+        <button class="btn-save" id="modeBuilder">Plan Builder</button>
+        <button class="btn-save" id="modeInspector" style="background: var(--stone); color: var(--ink);">Inspector</button>
+      </div>
+
+      <main class="grid" id="builderMode">
+        <section class="panel" id="builderPanel">
+          <h2>Plan Builder</h2>
+          <p class="empty-state" style="margin: 0 0 14px;">
+            Enter a goal, constraints, and out of scope items. Download plan.md
+            without using the terminal.
+          </p>
+          <div class="section-block">
+            <h3>Goal</h3>
+            <textarea id="builderGoal" placeholder="Describe what the prompt should do."></textarea>
+          </div>
+          <div class="section-block">
+            <h3>Constraints</h3>
+            <textarea id="builderConstraints" placeholder="One per line. Example: Must return JSON"></textarea>
+          </div>
+          <div class="section-block">
+            <h3>Out Of Scope</h3>
+            <textarea id="builderOut" placeholder="One per line. Example: Payments"></textarea>
+          </div>
+          <div class="buttons" style="margin-top: 16px;">
+            <button class="btn-save" id="downloadPlan">Download plan.md</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>How It Works</h2>
+          <div class="empty-state">
+            Downloaded plan.md can be opened later in Inspector mode to visualize
+            how rules map into the compiled contract.
+          </div>
+        </section>
+      </main>
+
+      <main class="grid" id="inspectorMode" hidden>
+        <section class="panel">
+          <h2>Load Files</h2>
+          <div class="empty-state" style="margin-bottom: 12px;">
+            Select a plan and optional IR files to inspect mappings.
+          </div>
+          <div class="control-card" style="margin-bottom: 10px;">
+            <label for="planInputInspector">Plan File</label>
+            <input id="planInputInspector" type="file" accept=".md" />
+          </div>
+          <div class="control-card" style="margin-bottom: 10px;">
+            <label for="irInputInspector">IR File</label>
+            <input id="irInputInspector" type="file" accept=".json" />
+          </div>
+          <div class="control-card">
+            <label for="explainInputInspector">Explain File</label>
+            <input id="explainInputInspector" type="file" accept=".json" />
+          </div>
+        </section>
+
+        <section class="panel" id="planPanelInspector">
+          <h2>Plan Overview</h2>
+          <div class="empty-state" id="planEmptyInspector">
+            Load a plan.md file to view goal, constraints, and out of scope.
+          </div>
+          <div id="planContentInspector" hidden>
+            <div class="section-block">
+              <h3>Goal</h3>
+              <p id="goalTextInspector"></p>
+            </div>
+            <div class="section-block">
+              <h3>Constraints</h3>
+              <ul id="constraintsListInspector"></ul>
+            </div>
+            <div class="section-block">
+              <h3>Out Of Scope</h3>
+              <ul id="outListInspector"></ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Prompt IR</h2>
+          <div class="empty-state" id="irEmptyInspector">
+            Load prompt.ir.json to view the compiled contract.
+          </div>
+          <pre class="json-view" id="irContentInspector" hidden></pre>
+        </section>
+
+        <section class="panel">
+          <h2>Explain Mapping</h2>
+          <div class="empty-state" id="explainEmptyInspector">
+            Load prompt.ir.explain.json to see sources for each rule.
+          </div>
+          <div class="mapping" id="explainContentInspector" hidden></div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const planInputInspector = document.getElementById('planInputInspector');
+      const irInputInspector = document.getElementById('irInputInspector');
+      const explainInputInspector = document.getElementById('explainInputInspector');
+      const downloadPlan = document.getElementById('downloadPlan');
+      const modeBuilder = document.getElementById('modeBuilder');
+      const modeInspector = document.getElementById('modeInspector');
+      const builderMode = document.getElementById('builderMode');
+      const inspectorMode = document.getElementById('inspectorMode');
+
+      planInputInspector.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          renderPlan(reader.result, 'Inspector');
+        };
+        reader.readAsText(file);
+      });
+
+      irInputInspector.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          renderIR(reader.result, 'Inspector');
+        };
+        reader.readAsText(file);
+      });
+
+      explainInputInspector.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          renderExplain(reader.result, 'Inspector');
+        };
+        reader.readAsText(file);
+      });
+
+      modeBuilder.addEventListener('click', () => {
+        builderMode.hidden = false;
+        inspectorMode.hidden = true;
+        modeBuilder.style.background = 'var(--ember)';
+        modeBuilder.style.color = '#fff';
+        modeInspector.style.background = 'var(--stone)';
+        modeInspector.style.color = 'var(--ink)';
+      });
+
+      modeInspector.addEventListener('click', () => {
+        builderMode.hidden = true;
+        inspectorMode.hidden = false;
+        modeInspector.style.background = 'var(--ember)';
+        modeInspector.style.color = '#fff';
+        modeBuilder.style.background = 'var(--stone)';
+        modeBuilder.style.color = 'var(--ink)';
+      });
+
+      modeBuilder.click();
+
+      downloadPlan.addEventListener('click', () => {
+        const goal = document.getElementById('builderGoal').value.trim();
+        const constraints = document.getElementById('builderConstraints').value;
+        const outOfScope = document.getElementById('builderOut').value;
+        const plan = buildPlan(goal, constraints, outOfScope);
+        downloadFile('plan.md', plan);
+      });
+
+      function renderPlan(raw, suffix = '') {
+        const normalized = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+        const goalMatch = normalized.match(/## Goal\s*\n([\s\S]*?)(?=\n## |$)/);
+        const constraintsMatch = normalized.match(/## Constraints\s*\n([\s\S]*?)(?=\n## |$)/);
+        const outMatch = normalized.match(/## Out of Scope\s*\n([\s\S]*?)(?=\n---|$)/);
+        const commentRegex = /<!--[\s\S]*?-->/g;
+
+        const goal = goalMatch ? goalMatch[1].replace(commentRegex, '').trim() : '';
+        const constraintsRaw = constraintsMatch ? constraintsMatch[1].replace(commentRegex, '').trim() : '';
+        const outRaw = outMatch ? outMatch[1].replace(commentRegex, '').trim() : '';
+
+        const constraints = splitLines(constraintsRaw);
+        const outItems = splitLines(outRaw);
+
+        document.getElementById(`goalText${suffix}`).textContent = goal || 'No goal found.';
+        fillList(`constraintsList${suffix}`, constraints);
+        fillList(`outList${suffix}`, outItems);
+
+        toggleVisibility(`planEmpty${suffix}`, false);
+        toggleVisibility(`planContent${suffix}`, true);
+      }
+
+      function renderIR(raw, suffix = '') {
+        try {
+          const parsed = JSON.parse(raw);
+          document.getElementById(`irContent${suffix}`).textContent = JSON.stringify(parsed, null, 2);
+          toggleVisibility(`irEmpty${suffix}`, false);
+          toggleVisibility(`irContent${suffix}`, true);
+        } catch (error) {
+          document.getElementById(`irContent${suffix}`).textContent = 'Invalid JSON.';
+          toggleVisibility(`irEmpty${suffix}`, false);
+          toggleVisibility(`irContent${suffix}`, true);
+        }
+      }
+
+      function renderExplain(raw, suffix = '') {
+        const container = document.getElementById(`explainContent${suffix}`);
+        container.innerHTML = '';
+        try {
+          const parsed = JSON.parse(raw);
+          const entries = parsed.rules || [];
+          entries.forEach((entry) => {
+            const card = document.createElement('div');
+            card.className = 'mapping-card';
+            card.innerHTML = `<h4>${entry.id}</h4><span>${entry.source.section || entry.source.type} line ${entry.source.line || '-'}</span>`;
+            container.appendChild(card);
+          });
+          toggleVisibility(`explainEmpty${suffix}`, entries.length === 0);
+          toggleVisibility(`explainContent${suffix}`, entries.length > 0);
+        } catch (error) {
+          toggleVisibility(`explainEmpty${suffix}`, false);
+          toggleVisibility(`explainContent${suffix}`, true);
+          container.innerHTML = '<div class="mapping-card">Invalid explain JSON.</div>';
+        }
+      }
+
+      function buildPlan(goal, constraintsText, outText) {
+        const goalLine = goal || '<!-- Describe the intended purpose and outcome of this prompt -->';
+        const constraints = buildList(constraintsText);
+        const outItems = buildList(outText);
+
+        return `# Prompt Plan
+
+## Goal
+${goalLine}
+
+## Constraints
+${constraints || '<!-- List the limitations, rules, and boundaries that must be respected -->'}
+
+## Out of Scope
+${outItems || '<!-- Explicitly state what this prompt should NOT handle or address -->'}
+
+---
+
+Note: This file is human-readable and editable. It is NOT authoritative.
+The authoritative artifact is prompt.ir.json, generated by 'promptforge compile'.
+`;
+      }
+
+      function buildList(text) {
+        if (!text) return '';
+        const lines = text
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((line) => (line.startsWith('- ') ? line : `- ${line}`));
+        return lines.join('\n');
+      }
+
+      function downloadFile(filename, contents) {
+        const blob = new Blob([contents], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+
+      function splitLines(raw) {
+        if (!raw) return [];
+        return raw
+          .split(/\\r?\\n/)
+          .map((line) => line.replace(/^[-*\\d.\\s]+/, '').trim())
+          .filter(Boolean);
+      }
+
+      function fillList(id, items) {
+        const list = document.getElementById(id);
+        list.innerHTML = '';
+        if (!items.length) {
+          const li = document.createElement('li');
+          li.textContent = 'None.';
+          list.appendChild(li);
+          return;
+        }
+        items.forEach((item) => {
+          const li = document.createElement('li');
+          li.textContent = item;
+          list.appendChild(li);
+        });
+      }
+
+      function toggleVisibility(id, show) {
+        const element = document.getElementById(id);
+        element.hidden = !show;
+      }
+    </script>
+  </body>
+</html>

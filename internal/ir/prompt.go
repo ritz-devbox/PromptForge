@@ -3,6 +3,9 @@ package ir
 // PromptIR represents the machine-enforceable prompt contract.
 // This is the authoritative artifact produced by compilation.
 type PromptIR struct {
+	// Version identifies the IR format version.
+	Version string `json:"version"`
+
 	// SystemRole defines the role and context for the LLM.
 	SystemRole string `json:"system_role"`
 
@@ -75,5 +78,3 @@ type FailureMode struct {
 	// Response describes how the system should respond to this failure.
 	Response string `json:"response"`
 }
-
-

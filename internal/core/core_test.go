@@ -81,6 +81,12 @@ func TestCompileProject_Success(t *testing.T) {
 	if _, err := os.Stat(outputPath); os.IsNotExist(err) {
 		t.Error("prompt.ir.json was not created")
 	}
+
+	// Verify schema file was created
+	schemaPath := filepath.Join(tmpDir, "prompt.ir.schema.json")
+	if _, err := os.Stat(schemaPath); os.IsNotExist(err) {
+		t.Error("prompt.ir.schema.json was not created")
+	}
 }
 
 // TestInitializeProject_WithDescription tests initialization with a description.
@@ -107,6 +113,30 @@ func TestInitializeProject_WithDescription(t *testing.T) {
 	}
 }
 
+func TestInitializeProject_WithTemplate(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	description := "Template goal override"
+	err := InitializeProjectWithTemplate(tmpDir, description, "code-review")
+	if err != nil {
+		t.Fatalf("InitializeProjectWithTemplate() failed: %v", err)
+	}
+
+	planPath := filepath.Join(tmpDir, "promptforge", "plan.md")
+	content, err := os.ReadFile(planPath)
+	if err != nil {
+		t.Fatalf("Failed to read plan.md: %v", err)
+	}
+
+	contentStr := string(content)
+	if !strings.Contains(contentStr, description) {
+		t.Fatalf("plan.md should contain overridden goal. Got: %s", contentStr)
+	}
+	if !strings.Contains(contentStr, "Prioritize critical issues") {
+		t.Errorf("plan.md should include template content")
+	}
+}
+
 // TestCompileProject_MissingPlan tests that compilation fails when plan.md does not exist.
 func TestCompileProject_MissingPlan(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -121,4 +151,62 @@ func TestCompileProject_MissingPlan(t *testing.T) {
 	}
 }
 
+func TestLintProject_Success(t *testing.T) {
+	tmpDir := t.TempDir()
 
+	promptforgeDir := filepath.Join(tmpDir, "promptforge")
+	if err := os.MkdirAll(promptforgeDir, 0755); err != nil {
+		t.Fatalf("Failed to create promptforge directory: %v", err)
+	}
+	planPath := filepath.Join(promptforgeDir, "plan.md")
+	planContent := []byte(`# Prompt Plan
+
+## Goal
+A clear goal statement for linting tests.
+
+## Constraints
+- Be strict
+
+## Out of Scope
+- Handle payments
+`)
+	if err := os.WriteFile(planPath, planContent, 0644); err != nil {
+		t.Fatalf("Failed to create plan.md: %v", err)
+	}
+
+	diags, err := LintProject(tmpDir)
+	if err != nil {
+		t.Fatalf("LintProject() failed: %v", err)
+	}
+	if len(diags) != 0 {
+		t.Fatalf("Expected no diagnostics, got %d", len(diags))
+	}
+}
+
+func TestCompileProjectWithExplain_WritesExplain(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	promptforgeDir := filepath.Join(tmpDir, "promptforge")
+	if err := os.MkdirAll(promptforgeDir, 0755); err != nil {
+		t.Fatalf("Failed to create promptforge directory: %v", err)
+	}
+	planPath := filepath.Join(promptforgeDir, "plan.md")
+	planContent := []byte("# Prompt Plan\n\n## Goal\nTest goal\n")
+	if err := os.WriteFile(planPath, planContent, 0644); err != nil {
+		t.Fatalf("Failed to create plan.md: %v", err)
+	}
+
+	outputPath := filepath.Join(tmpDir, "prompt.ir.json")
+	explainPath := filepath.Join(tmpDir, "prompt.ir.explain.json")
+	ir, err := CompileProjectWithExplain(tmpDir, outputPath, explainPath)
+	if err != nil {
+		t.Fatalf("CompileProjectWithExplain() failed: %v", err)
+	}
+	if ir == nil {
+		t.Fatal("CompileProjectWithExplain() should return IR")
+	}
+
+	if _, err := os.Stat(explainPath); os.IsNotExist(err) {
+		t.Error("prompt.ir.explain.json was not created")
+	}
+}

@@ -35,7 +35,7 @@ func TestCompile_SuccessfulCompilation(t *testing.T) {
 	}
 
 	// Run compile
-	err = Compile()
+	err = Compile(false)
 	if err != nil {
 		t.Fatalf("Compile() failed: %v", err)
 	}
@@ -63,10 +63,8 @@ func TestCompile_MissingPlanMD(t *testing.T) {
 	defer os.Chdir(originalDir)
 
 	// Run compile without creating plan.md
-	err = Compile()
+	err = Compile(false)
 	if err == nil {
 		t.Error("Compile() should fail when plan.md does not exist")
 	}
 }
-
-

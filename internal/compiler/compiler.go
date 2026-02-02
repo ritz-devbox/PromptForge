@@ -1,14 +1,17 @@
 package compiler
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/promptforge/promptforge/internal/ir"
 	"github.com/promptforge/promptforge/internal/parser"
+	"github.com/santhosh-tekuri/jsonschema/v5"
 )
 
 // Compile transforms human-readable plan content into a PromptIR.
@@ -97,6 +100,7 @@ func Compile(planContent []byte) (*ir.PromptIR, error) {
 	inputSchema, outputSchema := generateSchemas(plan)
 
 	return &ir.PromptIR{
+		Version:      ir.CurrentVersion,
 		SystemRole:   systemRole,
 		Rules:        allRules,
 		InputSchema:  inputSchema,
@@ -113,7 +117,7 @@ func generateSystemRole(goal string) string {
 
 	// Format the goal as a system role
 	goal = strings.TrimSpace(goal)
-	
+
 	// Capitalize first letter if needed
 	if len(goal) > 0 && goal[0] >= 'a' && goal[0] <= 'z' {
 		goal = strings.ToUpper(string(goal[0])) + goal[1:]
@@ -158,12 +162,12 @@ func generateRules(constraints []string, existingIDs map[string]bool) []ir.Rule 
 // If the generated ID collides with existingIDs, appends a suffix to make it unique.
 func generateUniqueRuleID(description string, index int, existingIDs map[string]bool) string {
 	baseID := generateRuleID(description, index)
-	
+
 	// If ID doesn't exist, return it
 	if !existingIDs[baseID] {
 		return baseID
 	}
-	
+
 	// If collision, append suffix
 	suffix := 1
 	for {
@@ -189,15 +193,15 @@ func generateRuleID(description string, index int) string {
 	// Remove extra spaces
 	cleaned = regexp.MustCompile(`\s+`).ReplaceAllString(cleaned, " ")
 	words := strings.Fields(cleaned)
-	
+
 	// Take first few meaningful words
 	var keyWords []string
 	for _, word := range words {
 		// Skip common words
-		if word == "the" || word == "a" || word == "an" || word == "is" || 
-		   word == "are" || word == "must" || word == "should" || word == "can" ||
-		   word == "will" || word == "be" || word == "to" || word == "of" ||
-		   word == "not" || word == "only" {
+		if word == "the" || word == "a" || word == "an" || word == "is" ||
+			word == "are" || word == "must" || word == "should" || word == "can" ||
+			word == "will" || word == "be" || word == "to" || word == "of" ||
+			word == "not" || word == "only" {
 			continue
 		}
 		if len(keyWords) < 3 {
@@ -258,12 +262,12 @@ func generateFailureModes(outOfScope []string, existingIDs map[string]bool) []ir
 // If the generated ID collides with existingIDs, appends a suffix to make it unique.
 func generateUniqueFailureModeID(description string, index int, existingIDs map[string]bool) string {
 	baseID := generateFailureModeID(description, index)
-	
+
 	// If ID doesn't exist, return it
 	if !existingIDs[baseID] {
 		return baseID
 	}
-	
+
 	// If collision, append suffix
 	suffix := 1
 	for {
@@ -285,7 +289,7 @@ func generateFailureModeID(description string, index int) string {
 	cleaned := regexp.MustCompile(`(?i)^does\s+not\s+`).ReplaceAllString(description, "")
 	cleaned = regexp.MustCompile(`[^\w\s]`).ReplaceAllString(strings.ToLower(cleaned), " ")
 	words := strings.Fields(cleaned)
-	
+
 	var keyWords []string
 	for _, word := range words {
 		if word == "handle" || word == "support" || word == "debug" {
@@ -328,6 +332,36 @@ func generateSchemas(plan *parser.Plan) (ir.Schema, ir.Schema) {
 		}
 }
 
+var (
+	promptIRSchemaOnce sync.Once
+	promptIRSchema     *jsonschema.Schema
+	promptIRSchemaErr  error
+)
+
+func compiledPromptIRSchema() (*jsonschema.Schema, error) {
+	promptIRSchemaOnce.Do(func() {
+		schemaJSON, err := ir.PromptIRSchemaJSON()
+		if err != nil {
+			promptIRSchemaErr = fmt.Errorf("failed to marshal IR schema: %w", err)
+			return
+		}
+
+		compiler := jsonschema.NewCompiler()
+		if err := compiler.AddResource("prompt-ir.schema.json", bytes.NewReader(schemaJSON)); err != nil {
+			promptIRSchemaErr = fmt.Errorf("failed to load IR schema: %w", err)
+			return
+		}
+
+		promptIRSchema, promptIRSchemaErr = compiler.Compile("prompt-ir.schema.json")
+	})
+
+	if promptIRSchemaErr != nil {
+		return nil, promptIRSchemaErr
+	}
+
+	return promptIRSchema, nil
+}
+
 // ValidateIR ensures all required fields are present and valid.
 // Fails compilation if validation fails.
 func ValidateIR(promptIR *ir.PromptIR) error {
@@ -336,6 +370,10 @@ func ValidateIR(promptIR *ir.PromptIR) error {
 	}
 
 	// Validate system_role is present and non-empty
+	if promptIR.Version == "" {
+		return fmt.Errorf("version is required and cannot be empty")
+	}
+
 	if promptIR.SystemRole == "" {
 		return fmt.Errorf("system_role is required and cannot be empty")
 	}
@@ -383,6 +421,25 @@ func ValidateIR(promptIR *ir.PromptIR) error {
 		}
 	}
 
+	schema, err := compiledPromptIRSchema()
+	if err != nil {
+		return fmt.Errorf("failed to compile IR schema: %w", err)
+	}
+
+	data, err := json.Marshal(promptIR)
+	if err != nil {
+		return fmt.Errorf("failed to marshal IR for schema validation: %w", err)
+	}
+
+	var payload interface{}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return fmt.Errorf("failed to unmarshal IR for schema validation: %w", err)
+	}
+
+	if err := schema.Validate(payload); err != nil {
+		return fmt.Errorf("schema validation failed: %w", err)
+	}
+
 	return nil
 }
 
@@ -419,3 +476,26 @@ func WriteIR(promptIR *ir.PromptIR, outputPath string) error {
 	return nil
 }
 
+// WriteIRSchema writes the PromptIR JSON Schema to disk.
+func WriteIRSchema(outputPath string) error {
+	if outputPath == "" {
+		return fmt.Errorf("output path cannot be empty")
+	}
+
+	data, err := ir.PromptIRSchemaJSON()
+	if err != nil {
+		return fmt.Errorf("failed to marshal IR schema: %w", err)
+	}
+
+	if err := os.WriteFile(outputPath, data, 0644); err != nil {
+		if os.IsPermission(err) {
+			return fmt.Errorf("permission denied: cannot write to %s", outputPath)
+		}
+		if err.Error() == "no space left on device" || err.Error() == "not enough space" {
+			return fmt.Errorf("disk full: cannot write to %s", outputPath)
+		}
+		return fmt.Errorf("failed to write IR schema to %s: %w", outputPath, err)
+	}
+
+	return nil
+}
